@@ -1,0 +1,43 @@
+# Cold Storage Produce Safety Rules & Threshold Configurations
+crops:
+  Orange:
+    temp_min: 21.0
+    temp_max: 23.5
+    humidity_min: 85.0
+    humidity_max: 95.0
+    light_max: 12.0
+    co2_max: 380.0
+    description: "Citrus fruits require moderate cool temperatures and controlled humidity to avoid fungal decay and drying."
+
+  Banana:
+    temp_min: 24.0
+    temp_max: 26.5
+    humidity_min: 85.0
+    humidity_max: 95.0
+    light_max: 22.0
+    co2_max: 360.0
+    description: "Bananas are climacteric fruits sensitive to chilling injury below 13°C and rapid ripening under high CO2/light."
+
+  Tomato:
+    temp_min: 22.0
+    temp_max: 24.5
+    humidity_min: 75.0
+    humidity_max: 93.0
+    light_max: 18.0
+    co2_max: 360.0
+    description: "Tomatoes require balanced humidity and light control to prevent premature ripening, mold, and skin splitting."
+
+  Pineapple:
+    temp_min: 22.0
+    temp_max: 24.5
+    humidity_min: 80.0
+    humidity_max: 95.0
+    light_max: 14.5
+    co2_max: 380.0
+    description: "Pineapples are vulnerable to internal browning and yeast fermentation under elevated temperature and carbon dioxide."
+
+alert_rules:
+  critical_temp_delta: 2.0  # °C deviation that triggers an immediate CRITICAL alert
+  critical_co2_spike: 420.0 # ppm threshold for emergency ventilation alert
+  debounce_seconds: 300     # 5 minutes debounce for same alert type per zone
+

@@ -1,0 +1,35 @@
+[
+  {
+    "zone_name": "Zone A - Citrus Chamber",
+    "crop_type": "Orange",
+    "temperature": 22.4,
+    "humidity": 92.5,
+    "light": 7.8,
+    "co2": 320.0
+  },
+  {
+    "zone_name": "Zone B - Banana Chamber",
+    "crop_type": "Banana",
+    "temperature": 25.1,
+    "humidity": 88.0,
+    "light": 18.5,
+    "co2": 340.0
+  },
+  {
+    "zone_name": "Zone C - Tomato Chamber",
+    "crop_type": "Tomato",
+    "temperature": 23.2,
+    "humidity": 89.0,
+    "light": 10.2,
+    "co2": 310.0
+  },
+  {
+    "zone_name": "Zone D - Pineapple Chamber",
+    "crop_type": "Pineapple",
+    "temperature": 23.0,
+    "humidity": 84.0,
+    "light": 12.6,
+    "co2": 335.0
+  }
+]
+
