@@ -749,6 +749,28 @@ footer {
   display: grid;
   place-items: center;
 }
+.chamber-list-scroll,
+.alert-list-scroll,
+.overview-zone-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.chamber-list-scroll::-webkit-scrollbar,
+.alert-list-scroll::-webkit-scrollbar,
+.overview-zone-scroll::-webkit-scrollbar {
+  display: none;
+}
+.chamber-list-scroll {
+  max-height: 560px;
+  padding-right: 6px;
+}
+.alert-list-scroll {
+  max-height: 580px;
+}
+.overview-zone-scroll {
+  max-height: 390px;
+}
 
 @media (max-width: 620px) {
   .page-grid,
@@ -760,6 +782,15 @@ footer {
   }
   .page-card {
     min-height: auto;
+  }
+  .chamber-list-scroll {
+    max-height: 500px;
+  }
+  .alert-list-scroll {
+    max-height: 520px;
+  }
+  .overview-zone-scroll {
+    max-height: 330px;
   }
 }
 footer .live-dot {

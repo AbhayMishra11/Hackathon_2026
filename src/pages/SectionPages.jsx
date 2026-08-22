@@ -38,7 +38,7 @@ export function ChambersPage({
         title="Chambers"
         subtitle="Monitor every cold storage chamber and its current operating state."
       />
-      <section className="page-grid">
+      <section className="page-grid chamber-list-scroll">
         {loading ? (
           <EmptyState>Loading chambers...</EmptyState>
         ) : zones.length ? (
@@ -126,7 +126,7 @@ export function AlertsPage({ alerts, loading }) {
         title="Alerts"
         subtitle="Review active anomalies reported by the cold storage network."
       />
-      <section className="panel full-page-panel">
+      <section className="panel full-page-panel alert-list-scroll">
         {loading ? (
           <EmptyState>Loading alerts...</EmptyState>
         ) : alerts.length ? (
@@ -147,7 +147,7 @@ export function NotificationsPage({ notifications, loading }) {
         title="Notifications"
         subtitle="SMS and WhatsApp notifications sent to farmers."
       />
-      <section className="panel full-page-panel">
+      <section className="panel full-page-panel alert-list-scroll">
         {loading ? (
           <EmptyState>Loading notifications...</EmptyState>
         ) : notifications.length ? (

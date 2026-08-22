@@ -259,7 +259,7 @@ function App() {
               </div>
               <StatusPill status={summary.system_status || "UNKNOWN"} />
             </div>
-            <div className="zone-list">
+            <div className="zone-list overview-zone-scroll">
               {loading ? (
                 <div className="empty-state">Loading chambers...</div>
               ) : zones.length ? (
@@ -334,7 +334,7 @@ function App() {
             </div>
             <HistoryChart history={history} />
           </div>
-          <div className="panel alerts-panel">
+          <div className="panel alerts-panel alert-list-scroll">
             <div className="panel-head">
               <div>
                 <p className="eyebrow">Needs attention</p>
