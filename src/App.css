@@ -675,6 +675,93 @@ footer {
   display: flex;
   justify-content: space-between;
 }
+
+.back-button {
+  border: 0;
+  background: transparent;
+  color: var(--lime);
+  padding: 0;
+  margin-bottom: 28px;
+  font-size: 11px;
+}
+
+.section-page-heading {
+  margin-bottom: 38px;
+}
+.page-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.page-card {
+  min-height: 128px;
+}
+.page-card .zone-row {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.page-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.page-summary .metric-card {
+  min-height: 110px;
+}
+.full-page-panel {
+  margin-top: 12px;
+}
+.telemetry-page-card {
+  margin-bottom: 12px;
+}
+.page-sensor-grid {
+  margin-top: 28px;
+}
+.farmer-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.farmer-card div {
+  flex: 1;
+}
+.farmer-card h3 {
+  font:
+    400 17px Georgia,
+    serif;
+  margin: 0 0 5px;
+}
+.farmer-card small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.analytics-value {
+  color: var(--lime);
+  font:
+    35px Georgia,
+    serif;
+  margin: 25px 0 5px;
+}
+.page-empty-state {
+  grid-column: 1 / -1;
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+}
+
+@media (max-width: 620px) {
+  .page-grid,
+  .page-summary {
+    grid-template-columns: 1fr;
+  }
+  .section-page-heading {
+    margin-bottom: 28px;
+  }
+  .page-card {
+    min-height: auto;
+  }
+}
 footer .live-dot {
   width: 4px;
   height: 4px;

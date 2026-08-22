@@ -28,6 +28,10 @@ export const api = {
       `/dashboard/zones/${zoneId}/history?sensor_type=TEMPERATURE&hours=24`,
     ),
   activeAlerts: () => request("/alerts/active"),
+  alertHistory: () => request("/alerts/history"),
+  notifications: () => request("/alerts/notifications"),
+  farmers: () => request("/farmers"),
+  zoneRisk: (zoneId) => request(`/analytics/zone-risk-score/${zoneId}`),
 };
 
 async function requestFromOrigin(path, options = {}) {
