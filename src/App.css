@@ -12,6 +12,14 @@ html {
   color: var(--lime);
   background: #202820;
 }
+.live-dot.offline,
+.connection.offline span {
+  background: var(--orange);
+  box-shadow: 0 0 10px var(--orange);
+}
+.connection.offline strong {
+  color: var(--orange);
+}
 .page-heading,
 .monitor-grid,
 .chart-panel,

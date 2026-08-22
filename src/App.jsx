@@ -43,25 +43,39 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [live, setLive] = useState(null);
   const [history, setHistory] = useState(null);
+  const [liveZoneId, setLiveZoneId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeView, setActiveView] = useState("overview");
   const [health, setHealth] = useState(null);
 
   useEffect(() => {
-    Promise.all([api.health(), api.summary(), api.zones(), api.activeAlerts()])
-      .then(([nextHealth, nextSummary, nextZones, nextAlerts]) => {
-        setHealth(nextHealth);
-        setSummary(nextSummary);
-        setZones(nextZones);
-        setAlerts(nextAlerts);
-        setSelectedId(nextZones[0]?.zone_id);
+    Promise.allSettled([
+      api.health(),
+      api.summary(),
+      api.zones(),
+      api.activeAlerts(),
+    ])
+      .then(([healthResult, summaryResult, zonesResult, alertsResult]) => {
+        if (healthResult.status === "fulfilled") setHealth(healthResult.value);
+        if (summaryResult.status === "fulfilled")
+          setSummary(summaryResult.value);
+        if (zonesResult.status === "fulfilled") {
+          setZones(zonesResult.value);
+          setSelectedId(zonesResult.value[0]?.zone_id);
+        }
+        if (alertsResult.status === "fulfilled") setAlerts(alertsResult.value);
+
+        if (
+          [healthResult, summaryResult, zonesResult, alertsResult].some(
+            (result) => result.status === "rejected",
+          )
+        ) {
+          setError(
+            "Some facility data is unavailable. The dashboard will show available API responses.",
+          );
+        }
       })
-      .catch(() =>
-        setError(
-          "Backend unavailable. Start FastAPI on port 8000 to see live facility data.",
-        ),
-      )
       .finally(() => setLoading(false));
   }, []);
 
@@ -71,17 +85,21 @@ function App() {
       .then(([nextLive, nextHistory]) => {
         setLive(nextLive);
         setHistory(nextHistory);
+        setLiveZoneId(selectedId);
       })
-      .catch(() => setLive(null));
+      .catch(() => setLiveZoneId(null));
   }, [selectedId]);
 
   const activeZone = zones.find((zone) => zone.zone_id === selectedId);
-  const displayLive = live || {
-    ...emptyLive,
-    zone_name: activeZone?.zone_name || emptyLive.zone_name,
-    crop_type: activeZone?.current_crop_type,
-    overall_status: activeZone?.status || emptyLive.overall_status,
-  };
+  const displayLive =
+    liveZoneId === selectedId && live
+      ? live
+      : {
+          ...emptyLive,
+          zone_name: activeZone?.zone_name || emptyLive.zone_name,
+          crop_type: activeZone?.current_crop_type,
+          overall_status: activeZone?.status || emptyLive.overall_status,
+        };
   const summaryTime = summary.timestamp
     ? new Date(summary.timestamp).toLocaleString("en-IN", {
         dateStyle: "full",
@@ -112,19 +130,23 @@ function App() {
   const metrics = [
     {
       label: "Produce in storage",
-      value: formatNumber(summary.total_produce_stored_kg, " kg"),
+      value: loading
+        ? "—"
+        : formatNumber(summary.total_produce_stored_kg, " kg"),
       note: "Across all active batches",
       tone: "lime",
     },
     {
       label: "Chambers online",
-      value: `${summary.total_zones || 0} / ${summary.total_zones || 0}`,
-      note: "All systems operational",
+      value: loading ? "—" : summary.total_zones,
+      note: `${summary.zone_breakdown?.optimal || 0} optimal zones`,
     },
     {
       label: "Active alerts",
-      value: summary.active_alerts || 0,
-      note: `${summary.critical_alerts || 0} critical require attention`,
+      value: loading ? "—" : summary.active_alerts,
+      note: loading
+        ? "Waiting for alert data"
+        : `${summary.critical_alerts || 0} critical require attention`,
       tone: summary.active_alerts ? "orange" : "neutral",
     },
     {
@@ -213,8 +235,12 @@ function App() {
             </div>
             <b>⌄</b>
           </div>
-          <div className="connection">
-            <span /> API connection <strong>●</strong>
+          <div
+            className={`connection ${health?.status === "HEALTHY" ? "" : "offline"}`}
+          >
+            <span /> API{" "}
+            {health?.status === "HEALTHY" ? "connection" : "unavailable"}{" "}
+            <strong>●</strong>
           </div>
         </div>
       </aside>
@@ -228,8 +254,10 @@ function App() {
             Operations <span>/</span> Facility overview
           </div>
           <div className="top-actions">
-            <span className="live-dot" />
-            Live system{" "}
+            <span
+              className={`live-dot ${health?.status === "HEALTHY" ? "" : "offline"}`}
+            />
+            {health?.status || "Connecting"}{" "}
             <button aria-label="Notifications">
               ♧<i>{summary.active_alerts || 0}</i>
             </button>
