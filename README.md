@@ -1,4 +1,4 @@
-# 🌾 Krishi Cold Chain — IoT Cold Storage Monitoring & Spoilage Prediction System
+# Cold Storage Monitoring & Spoilage Prediction System
 
 An end-to-end, IoT-enabled smart cold storage monitoring platform designed to minimize post-harvest agricultural losses. The system continuously tracks ambient conditions across storage chambers, predicts produce spoilage risks using Machine Learning, delivers instant SMS alerts to farmers during environmental anomalies, and streams live telemetry to interactive web dashboards.
 
