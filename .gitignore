@@ -47,3 +47,8 @@ backend/cold_storage.db
 *.njsproj
 *.sln
 *.sw?
+
+# Postman & API Test Collections (Local only)
+*.postman_collection.json
+*.postman_environment.json
+postman/
