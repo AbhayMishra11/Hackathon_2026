@@ -1,168 +1,188 @@
-from datetime import datetime
-from typing import Dict, Any, List, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timezone
+from typing import Dict
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.websocket_manager import connection_manager
 from app.models.cold_storage import Zone
+from app.models.device import Device
 from app.models.sensor import Sensor
-from app.models.telemetry import SensorTelemetryLog
-from app.schemas.telemetry import TelemetryIngestRequest, IngestResponse
+from app.models.telemetry import SensorTelemetryLog, TelemetryFrame
 from app.schemas.ml import SpoilagePredictionRequest
-from app.services.ml_service import ml_service
+from app.schemas.telemetry import IngestResponse, TelemetryIngestRequest
 from app.services.alert_service import alert_service
 from app.services.cache_service import cache_service
-from app.core.websocket_manager import connection_manager
+from app.services.ml_service import ml_service
+from app.services.power_service import autonomy_hours
+from app.services.psychrometrics import abs_humidity_gm3, condensation_margin_c, dew_point_c, vpd_kpa
+
+
+def _naive_utc(value: datetime | None) -> datetime:
+    value = value or datetime.now(timezone.utc)
+    return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+
 
 class TelemetryService:
     @staticmethod
-    async def process_telemetry(db: AsyncSession, data: TelemetryIngestRequest) -> IngestResponse:
-        """
-        Process single/multi-sensor telemetry packet from IoT device.
-        """
-        # 1. Resolve Zone
-        zone = None
-        if data.zone_id:
-            zone = await db.get(Zone, data.zone_id)
-        elif data.zone_name:
-            query = select(Zone).where(Zone.zone_name == data.zone_name)
-            zone = (await db.execute(query)).scalars().first()
+    async def frame_exists(db: AsyncSession, data: TelemetryIngestRequest) -> bool:
+        if not data.device_id or data.seq is None:
+            return False
+        result = await db.execute(select(TelemetryFrame.frame_id).where(
+            TelemetryFrame.device_id == data.device_id, TelemetryFrame.seq == data.seq
+        ))
+        return result.scalar_one_or_none() is not None
 
-        if not zone:
-            # Fallback to first zone
-            query = select(Zone)
-            zone = (await db.execute(query)).scalars().first()
-            if not zone:
-                raise ValueError("No valid zone found in storage to associate sensor reading.")
+    @staticmethod
+    async def process_telemetry(db: AsyncSession, data: TelemetryIngestRequest, commit: bool = True) -> IngestResponse:
+        zone = await TelemetryService._resolve_zone(db, data)
+        sampled_at = _naive_utc(data.sampled_at or data.timestamp)
+        received_at = datetime.utcnow()
+        co2_value = data.co2_true if data.co2_true is not None else data.co2
 
-        timestamp = data.timestamp or datetime.utcnow()
-        alerts_triggered_count = 0
+        readings: Dict[str, float] = {}
+        for sensor_type, value in {
+            "TEMPERATURE": data.temperature,
+            "HUMIDITY": data.humidity,
+            "CO2": co2_value,
+            "LIGHT": data.light,
+        }.items():
+            if value is not None:
+                readings[sensor_type] = value
+        for item in data.readings or []:
+            readings[item.sensor_type.upper()] = item.value
 
-        # Extract readings map
-        readings_map: Dict[str, float] = {}
-        if data.temperature is not None:
-            readings_map["TEMPERATURE"] = data.temperature
-        if data.humidity is not None:
-            readings_map["HUMIDITY"] = data.humidity
-        if data.co2 is not None:
-            readings_map["CO2"] = data.co2
-        if data.light is not None:
-            readings_map["LIGHT"] = data.light
+        temperature = data.temperature if data.temperature is not None else zone.setpoint_c or zone.temp_min
+        humidity = data.humidity if data.humidity is not None else zone.setpoint_rh or zone.humidity_min
+        co2 = co2_value if co2_value is not None else 0.0
+        light = data.light if data.light is not None else 0.0
+        prediction = ml_service.predict_spoilage(SpoilagePredictionRequest(
+            crop_type=zone.current_crop_type, temperature=temperature, humidity=humidity,
+            co2=co2, light=light
+        ))
 
-        if data.readings:
-            for item in data.readings:
-                sensor_type_upper = item.sensor_type.upper()
-                readings_map[sensor_type_upper] = item.value
+        device = None
+        if data.device_id:
+            device = await db.get(Device, data.device_id)
+            if not device:
+                device = Device(device_id=data.device_id, zone_id=zone.zone_id)
+                db.add(device)
+            device.zone_id = zone.zone_id
+            device.last_seen_at = received_at
+            device.last_seq = data.seq if data.seq is not None else device.last_seq
+            device.last_power_source = data.power_source
+            device.last_battery_soc = data.battery_soc
+            device.last_temp_c = temperature
+            device.last_rssi = data.rssi
+            device.firmware = data.firmware
+            device.is_online = True
 
-        # 2. Run Spoilage Prediction with latest zone readings
-        crop = zone.current_crop_type
-        # Fetch current sensor readings if not present in payload
-        current_temp = readings_map.get("TEMPERATURE", zone.temp_min + 1.0)
-        current_humid = readings_map.get("HUMIDITY", 90.0)
-        current_co2 = readings_map.get("CO2", 330.0)
-        current_light = readings_map.get("LIGHT", 10.0)
-
-        ml_request = SpoilagePredictionRequest(
-            crop_type=crop,
-            temperature=current_temp,
-            humidity=current_humid,
-            co2=current_co2,
-            light=current_light
-        )
-        prediction = ml_service.predict_spoilage(ml_request)
-
-        # 3. Update or Create Sensor Records and Log Telemetry
-        sensors_query = select(Sensor).where(Sensor.zone_id == zone.zone_id)
-        existing_sensors = (await db.execute(sensors_query)).scalars().all()
-        sensor_dict = {s.sensor_type.upper(): s for s in existing_sensors}
-
-        unit_defaults = {
-            "TEMPERATURE": "°C",
-            "HUMIDITY": "%",
-            "CO2": "ppm",
-            "LIGHT": "Lux"
+        existing = (await db.execute(select(Sensor).where(Sensor.zone_id == zone.zone_id))).scalars().all()
+        sensor_dict = {(s.sensor_type.upper(), s.channel or ""): s for s in existing}
+        bounds = {
+            "TEMPERATURE": (zone.temp_min, zone.temp_max, "°C"),
+            "HUMIDITY": (zone.humidity_min, zone.humidity_max, "%"),
+            "CO2": (0.0, zone.co2_ppm_max or zone.co2_max or 5000.0, "ppm"),
+            "LIGHT": (0.0, zone.light_max, "Lux"),
         }
-        bounds_defaults = {
-            "TEMPERATURE": (zone.temp_min, zone.temp_max),
-            "HUMIDITY": (zone.humidity_min, zone.humidity_max),
-            "CO2": (0.0, zone.co2_max),
-            "LIGHT": (0.0, zone.light_max)
-        }
-
-        for sensor_type, value in readings_map.items():
-            sensor = sensor_dict.get(sensor_type)
+        alerts = 0
+        for sensor_type, value in readings.items():
+            channel = "CHAMBER" if sensor_type == "CO2" else "AIR"
+            sensor = sensor_dict.get((sensor_type, channel))
+            minimum, maximum, unit = bounds.get(sensor_type, (0.0, 100.0, "units"))
             if not sensor:
-                base_val, max_val = bounds_defaults.get(sensor_type, (0.0, 100.0))
-                sensor = Sensor(
-                    zone_id=zone.zone_id,
-                    sensor_type=sensor_type,
-                    unit=unit_defaults.get(sensor_type, "units"),
-                    current_reading=value,
-                    base_reading=base_val,
-                    max_reading=max_val,
-                    status="ACTIVE",
-                    timestamp=timestamp
-                )
+                sensor = Sensor(zone_id=zone.zone_id, sensor_type=sensor_type, channel=channel, device_id=data.device_id,
+                                unit=unit, current_reading=value, base_reading=minimum, max_reading=maximum,
+                                status="ACTIVE", timestamp=sampled_at)
                 db.add(sensor)
                 await db.flush()
-                sensor_dict[sensor_type] = sensor
+                sensor_dict[(sensor_type, channel)] = sensor
             else:
-                sensor.current_reading = value
-                sensor.timestamp = timestamp
+                sensor.current_reading, sensor.timestamp, sensor.device_id = value, sampled_at, data.device_id
+                sensor.base_reading, sensor.max_reading = minimum, maximum
+            db.add(SensorTelemetryLog(sensor_id=sensor.sensor_id, zone_id=zone.zone_id, sensor_type=sensor_type,
+                                      reading_value=value, recorded_at=sampled_at))
+            if await alert_service.evaluate_sensor_and_alert(db, zone, sensor, value, prediction.spoilage_risk_percentage):
+                alerts += 1
 
-            # Create historical time-series log
-            log = SensorTelemetryLog(
-                sensor_id=sensor.sensor_id,
-                zone_id=zone.zone_id,
-                sensor_type=sensor_type,
-                reading_value=value,
-                recorded_at=timestamp
-            )
-            db.add(log)
+        margin = None
+        dew_point = None
+        if data.surface_temp is not None:
+            dew_point = dew_point_c(temperature, humidity)
+            margin = condensation_margin_c(data.surface_temp, temperature, humidity)
+        stratification = None
+        if data.probe_temps:
+            stratification = max(data.probe_temps) - min(data.probe_temps)
 
-            # Evaluate alerts for this reading
-            alert = await alert_service.evaluate_sensor_and_alert(
-                db=db,
-                zone=zone,
-                sensor=sensor,
-                reading_value=value,
-                spoilage_risk_pct=prediction.spoilage_risk_percentage
-            )
-            if alert:
-                alerts_triggered_count += 1
+        frame = None
+        if data.device_id and data.seq is not None:
+            existing_frame = (await db.execute(
+                select(TelemetryFrame).where(
+                    TelemetryFrame.device_id == data.device_id,
+                    TelemetryFrame.seq == data.seq
+                )
+            )).scalars().first()
 
-        # Commit DB transaction
-        await db.commit()
+            if existing_frame:
+                frame = existing_frame
+                frame.is_replay = True
+                frame.received_at = received_at
+                frame.air_temp_c = temperature
+                frame.air_rh = humidity
+                frame.surface_temp_c = data.surface_temp
+                frame.dew_point_c = dew_point
+                frame.vpd_kpa = vpd_kpa(temperature, humidity)
+                frame.condensation_margin_c = margin
+                frame.stratification_c = stratification
+            else:
+                frame = TelemetryFrame(
+                    device_id=data.device_id, zone_id=zone.zone_id, seq=data.seq, sampled_at=sampled_at,
+                    received_at=received_at, is_replay=data.sampled_at is not None,
+                    air_temp_c=temperature, air_rh=humidity, surface_temp_c=data.surface_temp,
+                    ambient_temp_c=data.ambient_temp, probe_temps=data.probe_temps, probe_status=data.probe_status,
+                    co2_ppm=co2_value, eco2_ppm=data.eco2, voc_index=data.voc_index, lux=light, mass_kg=data.mass_kg,
+                    door_open=data.door_open or False, compressor_on=data.compressor_on or False,
+                    fan_on=data.fan_on or False, mode=zone.mode, power_source=data.power_source,
+                    pv_power_w=data.pv_power_w, battery_soc=data.battery_soc, battery_v=data.battery_v,
+                    load_power_w=data.load_power_w, autonomy_hours=autonomy_hours(data.battery_soc, 10.0, data.load_power_w),
+                    dew_point_c=dew_point, vpd_kpa=vpd_kpa(temperature, humidity),
+                    abs_humidity_gm3=abs_humidity_gm3(temperature, humidity), condensation_margin_c=margin,
+                    stratification_c=stratification, rssi=data.rssi, firmware=data.firmware, edge_status=data.edge_status,
+                )
+                db.add(frame)
+        if commit:
+            await db.commit()
 
-        # 4. Construct live telemetry payload
-        ws_payload = {
-            "type": "TELEMETRY_UPDATE",
-            "zone_id": zone.zone_id,
-            "zone_name": zone.zone_name,
-            "crop_type": zone.current_crop_type,
-            "temperature": current_temp,
-            "humidity": current_humid,
-            "co2": current_co2,
-            "light": current_light,
-            "spoilage_risk": prediction.predicted_quality,
-            "risk_score": prediction.spoilage_risk_percentage,
-            "status": zone.status,
-            "timestamp": timestamp.isoformat()
+        payload = {
+            "type": "TELEMETRY_UPDATE", "zone_id": zone.zone_id, "zone_name": zone.zone_name,
+            "device_id": data.device_id, "crop_type": zone.current_crop_type, "temperature": temperature,
+            "humidity": humidity, "co2": co2, "light": light, "spoilage_risk": prediction.predicted_quality,
+            "risk_score": prediction.spoilage_risk_percentage, "status": zone.status, "timestamp": sampled_at.isoformat(),
+            "probe_temps": data.probe_temps, "probe_status": data.probe_status, "surface_temp": data.surface_temp,
+            "stratification_c": stratification, "dew_point_c": dew_point, "vpd_kpa": vpd_kpa(temperature, humidity),
+            "condensation_margin_c": margin, "voc_index": data.voc_index, "eco2_ppm": data.eco2,
+            "door_open": data.door_open, "compressor_on": data.compressor_on, "mode": zone.mode,
+            "setpoint_c": zone.setpoint_c, "power_source": data.power_source, "pv_power_w": data.pv_power_w,
+            "battery_soc": data.battery_soc, "load_power_w": data.load_power_w,
+            "autonomy_hours": frame.autonomy_hours if frame else None, "rssi": data.rssi, "edge_status": data.edge_status,
         }
+        await cache_service.set_live_zone_metrics(zone.zone_id, payload)
+        await cache_service.publish_telemetry_event("coldstorage:telemetry", payload)
+        await connection_manager.broadcast(payload, zone_id=zone.zone_id)
+        return IngestResponse(status="SUCCESS", message=f"Processed telemetry for {len(readings)} sensors in {zone.zone_name}",
+                              zone_id=zone.zone_id, alerts_triggered=alerts, spoilage_status=prediction.predicted_quality,
+                              timestamp=sampled_at, condensation_margin_c=margin,
+                              recommended_setpoint_c=zone.setpoint_c, server_time=received_at)
 
-        # 5. Cache live metrics in Redis for sub-millisecond dashboard reads & publish event
-        await cache_service.set_live_zone_metrics(zone.zone_id, ws_payload)
-        await cache_service.publish_telemetry_event("coldstorage:telemetry", ws_payload)
+    @staticmethod
+    async def _resolve_zone(db: AsyncSession, data: TelemetryIngestRequest) -> Zone:
+        zone = await db.get(Zone, data.zone_id) if data.zone_id else None
+        if not zone and data.zone_name:
+            zone = (await db.execute(select(Zone).where(Zone.zone_name == data.zone_name))).scalars().first()
+        if not zone and data.crop_type:
+            zone = (await db.execute(select(Zone).where(Zone.current_crop_type.ilike(data.crop_type)))).scalars().first()
+        if not zone:
+            raise ValueError(f"Unknown zone: zone_id={data.zone_id!r} zone_name={data.zone_name!r}")
+        return zone
 
-        # 6. Broadcast live telemetry packet to WebSocket clients
-        await connection_manager.broadcast(ws_payload, zone_id=zone.zone_id)
-
-        return IngestResponse(
-            status="SUCCESS",
-            message=f"Processed telemetry for {len(readings_map)} sensors in {zone.zone_name}",
-            zone_id=zone.zone_id,
-            alerts_triggered=alerts_triggered_count,
-            spoilage_status=prediction.predicted_quality,
-            timestamp=timestamp
-        )
 
 telemetry_service = TelemetryService()

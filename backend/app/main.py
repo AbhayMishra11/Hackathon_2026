@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +8,7 @@ from fastapi.responses import RedirectResponse
 from app.core.config import settings
 from app.db.init_db import init_database
 from app.services.cache_service import cache_service
+from app.services.watchdog_service import watchdog_loop
 from app.api.v1.api_router import api_v1_router
 from app.api.websocket import router as websocket_router
 
@@ -23,7 +25,13 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Cold Storage Backend Application...")
     await init_database()
     await cache_service.init_redis()
+    app.state.watchdog = asyncio.create_task(watchdog_loop())
     yield
+    app.state.watchdog.cancel()
+    try:
+        await app.state.watchdog
+    except asyncio.CancelledError:
+        pass
     logger.info("Shutting down Cold Storage Backend Application...")
     await cache_service.close()
 
@@ -38,6 +46,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=settings.CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

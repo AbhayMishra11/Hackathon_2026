@@ -9,7 +9,12 @@ class Sensor(Base):
 
     sensor_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     zone_id = Column(String(36), ForeignKey("zones.zone_id", ondelete="CASCADE"), nullable=False, index=True)
-    sensor_type = Column(String(50), nullable=False) # 'TEMPERATURE', 'HUMIDITY', 'CO2', 'LIGHT'
+    sensor_type = Column(String(50), nullable=False)
+    channel = Column(String(20), nullable=True)
+    hw_model = Column(String(40), nullable=True)
+    hw_address = Column(String(40), nullable=True)
+    device_id = Column(String(64), ForeignKey("devices.device_id"), nullable=True)
+    last_fault = Column(String(80), nullable=True)
     unit = Column(String(20), nullable=False) # '°C', '%', 'ppm', 'Lux'
     current_reading = Column(Float, default=0.0)
     base_reading = Column(Float, default=0.0) # Lower safe threshold or baseline

@@ -5,34 +5,16 @@ from app.schemas.ml import SpoilagePredictionRequest, SpoilagePredictionResponse
 
 # Default Crop Thresholds & Shelf-life Baselines
 CROP_THRESHOLDS = {
-    "Orange": {
-        "temp_min": 21.0, "temp_max": 23.5,
-        "humid_min": 85.0, "humid_max": 95.0,
-        "light_max": 12.0,
-        "co2_max": 380.0,
-        "base_shelf_life": 45
-    },
-    "Banana": {
-        "temp_min": 24.0, "temp_max": 26.5,
-        "humid_min": 85.0, "humid_max": 95.0,
-        "light_max": 22.0,
-        "co2_max": 360.0,
-        "base_shelf_life": 21
-    },
-    "Tomato": {
-        "temp_min": 22.0, "temp_max": 24.5,
-        "humid_min": 75.0, "humid_max": 93.0,
-        "light_max": 18.0,
-        "co2_max": 360.0,
-        "base_shelf_life": 28
-    },
-    "Pineapple": {
-        "temp_min": 22.0, "temp_max": 24.5,
-        "humid_min": 80.0, "humid_max": 95.0,
-        "light_max": 14.5,
-        "co2_max": 380.0,
-        "base_shelf_life": 30
-    }
+    "Cabbage": {"temp_min": 0.0, "temp_max": 2.0, "humid_min": 95.0, "humid_max": 100.0, "light_max": 20.0, "co2_max": 5000.0, "base_shelf_life": 90},
+    "Leafy greens": {"temp_min": 0.0, "temp_max": 2.0, "humid_min": 95.0, "humid_max": 100.0, "light_max": 20.0, "co2_max": 3000.0, "base_shelf_life": 12},
+    "French bean": {"temp_min": 5.0, "temp_max": 7.5, "humid_min": 92.0, "humid_max": 97.0, "light_max": 20.0, "co2_max": 4000.0, "base_shelf_life": 10},
+    "Khasi mandarin": {"temp_min": 5.0, "temp_max": 7.0, "humid_min": 90.0, "humid_max": 95.0, "light_max": 20.0, "co2_max": 5000.0, "base_shelf_life": 60},
+    "Green chilli": {"temp_min": 7.0, "temp_max": 10.0, "humid_min": 90.0, "humid_max": 95.0, "light_max": 20.0, "co2_max": 5000.0, "base_shelf_life": 18},
+    "Pineapple": {"temp_min": 10.0, "temp_max": 13.0, "humid_min": 85.0, "humid_max": 90.0, "light_max": 20.0, "co2_max": 5000.0, "base_shelf_life": 25},
+    "Tomato": {"temp_min": 12.5, "temp_max": 15.0, "humid_min": 90.0, "humid_max": 95.0, "light_max": 20.0, "co2_max": 5000.0, "base_shelf_life": 21},
+    "Ginger": {"temp_min": 12.0, "temp_max": 14.0, "humid_min": 60.0, "humid_max": 70.0, "light_max": 20.0, "co2_max": 5000.0, "base_shelf_life": 120},
+    "Orange": {"temp_min": 5.0, "temp_max": 7.0, "humid_min": 90.0, "humid_max": 95.0, "light_max": 20.0, "co2_max": 5000.0, "base_shelf_life": 60},
+    "Banana": {"temp_min": 0.0, "temp_max": 2.0, "humid_min": 95.0, "humid_max": 100.0, "light_max": 20.0, "co2_max": 5000.0, "base_shelf_life": 90},
 }
 
 class SpoilageMLService:
@@ -130,16 +112,16 @@ class SpoilageMLService:
         # 3. CO2 Concentration Analysis
         if req.co2 > limits["co2_max"]:
             excess = req.co2 - limits["co2_max"]
-            risk_score += min(35.0, (excess / 10.0) * 3.5)
+            risk_score += min(35.0, (excess / 1000.0) * 10.0)
             risk_factors.append(RiskFactor(
                 parameter="CO2",
                 current_value=req.co2,
                 safe_range=f"<= {limits['co2_max']} ppm",
-                status="CRITICAL" if req.co2 > 420.0 else "WARNING",
+                status="CRITICAL" if req.co2 >= (limits["co2_max"] + 3000.0) else "WARNING",
                 message=f"Elevated CO2 level ({req.co2:.1f} ppm) indicates high produce respiration or anaerobic fermentation."
             ))
 
-        # 4. Light Exposure Analysis
+        # 4. Light Exposure Analysis (Door ajar / seal loss indicator)
         if req.light > limits["light_max"]:
             excess = req.light - limits["light_max"]
             risk_score += min(15.0, excess * 1.2)
@@ -148,7 +130,7 @@ class SpoilageMLService:
                 current_value=req.light,
                 safe_range=f"<= {limits['light_max']} Lux",
                 status="WARNING",
-                message=f"Excessive light exposure ({req.light:.1f} Lux) accelerates photo-oxidation and premature ripening."
+                message=f"Light detected inside closed chamber ({req.light:.1f} Lux) indicates door open or seal failure causing cold air loss."
             ))
 
         # ML Model Enhancement if available

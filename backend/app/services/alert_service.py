@@ -14,6 +14,13 @@ from app.services.smschef_service import smschef_service
 from app.services.cache_service import cache_service
 
 logger = logging.getLogger("coldstorage.alerts")
+CRITICAL_MARGIN = {
+    "TEMPERATURE": 2.0,
+    "HUMIDITY": 10.0,
+    "CO2": 3000.0,
+    "VOC_INDEX": 100.0,
+    "LIGHT": 50.0,
+}
 
 class AlertService:
     @staticmethod
@@ -36,7 +43,8 @@ class AlertService:
         # 1. Check direct threshold breach
         if reading_value > sensor.max_reading:
             alert_triggered = True
-            severity = "CRITICAL" if (reading_value - sensor.max_reading) >= 3.0 else "WARNING"
+            margin = CRITICAL_MARGIN.get(sensor.sensor_type, 3.0)
+            severity = "CRITICAL" if (reading_value - sensor.max_reading) >= margin else "WARNING"
             alert_type = f"{sensor.sensor_type}_HIGH"
             title = f"High {sensor.sensor_type.capitalize()} Alert in {zone.zone_name}"
             message = (
@@ -44,7 +52,7 @@ class AlertService:
                 f"exceeding safe maximum threshold of {sensor.max_reading:.2f}{sensor.unit} "
                 f"for stored {zone.current_crop_type}."
             )
-        elif reading_value < sensor.base_reading and sensor.base_reading > 0:
+        if not alert_triggered and reading_value < sensor.base_reading and sensor.base_reading > 0:
             alert_triggered = True
             severity = "WARNING"
             alert_type = f"{sensor.sensor_type}_LOW"
@@ -54,7 +62,7 @@ class AlertService:
                 f"below safe minimum baseline of {sensor.base_reading:.2f}{sensor.unit} "
                 f"for stored {zone.current_crop_type}."
             )
-        elif spoilage_risk_pct >= 70.0 and sensor.sensor_type in ("TEMPERATURE", "CO2"):
+        if not alert_triggered and spoilage_risk_pct >= 70.0 and sensor.sensor_type in ("TEMPERATURE", "CO2"):
             alert_triggered = True
             severity = "CRITICAL"
             alert_type = "SPOILAGE_RISK_HIGH"
@@ -105,6 +113,9 @@ class AlertService:
             is_farmer_notified=False,
             created_at=datetime.utcnow()
         )
+        new_alert.metric = sensor.sensor_type
+        new_alert.observed_value = reading_value
+        new_alert.threshold_value = sensor.max_reading if alert_type.endswith("_HIGH") else sensor.base_reading
         db.add(new_alert)
         await db.flush() # Populate alert_id
 
@@ -118,6 +129,44 @@ class AlertService:
         await AlertService.dispatch_farmer_notification(db, zone, new_alert)
 
         return new_alert
+
+    @staticmethod
+    async def raise_system_alert(
+        db: AsyncSession,
+        zone_id: str,
+        alert_type: str,
+        severity: str,
+        title: str,
+        message: str,
+        device_id: Optional[str] = None,
+    ) -> Optional[Alert]:
+        """Create a debounced alert when no sensor reading is available."""
+        zone = await db.get(Zone, zone_id) if zone_id else None
+        if not zone:
+            return None
+        lock_acquired = await cache_service.acquire_alert_lock(
+            zone_id=zone.zone_id,
+            alert_type=alert_type,
+            ttl_seconds=settings.ALERT_DEBOUNCE_MINUTES * 60,
+        )
+        if not lock_acquired:
+            return None
+        alert = Alert(
+            zone_id=zone.zone_id,
+            device_id=device_id,
+            alert_type=alert_type,
+            severity=severity,
+            title=title,
+            message=message,
+            status="ACTIVE",
+            is_farmer_notified=False,
+            created_at=datetime.utcnow(),
+        )
+        db.add(alert)
+        await db.flush()
+        zone.status = "CRITICAL" if severity == "CRITICAL" else "WARNING"
+        await AlertService.dispatch_farmer_notification(db, zone, alert)
+        return alert
 
     @staticmethod
     async def dispatch_farmer_notification(

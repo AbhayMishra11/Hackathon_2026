@@ -41,3 +41,13 @@ class ZoneLiveStatus(BaseModel):
     active_alerts_count: int = 0
     last_updated: datetime
 
+class ZoneSetpointUpdate(BaseModel):
+    temp_c: float = Field(..., description="Target chamber temperature in °C")
+    rh_pct: Optional[float] = Field(default=92.0, description="Target relative humidity %")
+
+class ZoneModeUpdate(BaseModel):
+    mode: str = Field(..., description="AUTO, PRECOOL, DEFROST, ECO, OFF")
+
+class ZoneCropUpdate(BaseModel):
+    crop_type: str = Field(..., description="Cabbage, French bean, Leafy greens, Tomato, Ginger, Pineapple, Khasi mandarin, Green chilli")
+

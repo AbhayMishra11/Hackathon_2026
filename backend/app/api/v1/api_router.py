@@ -6,6 +6,7 @@ from .sensors import router as sensors_router
 from .alerts import router as alerts_router
 from .analytics import router as analytics_router
 from .farmers import router as farmers_router
+from .devices import router as devices_router
 
 api_v1_router = APIRouter()
 
@@ -16,4 +17,5 @@ api_v1_router.include_router(sensors_router)
 api_v1_router.include_router(alerts_router)
 api_v1_router.include_router(analytics_router)
 api_v1_router.include_router(farmers_router)
+api_v1_router.include_router(devices_router)
 

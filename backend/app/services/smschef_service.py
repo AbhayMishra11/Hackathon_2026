@@ -25,10 +25,10 @@ class SMSChefService:
         - phone: Recipient phone number (e.g. +919876543210)
         - message: Alert text
         """
-        if not self.api_key or not self.device_id:
+        if not self.api_key or self.api_key.startswith("your_") or not self.device_id or self.device_id.startswith("your_"):
             logger.info(
                 f"[SMS Chef Simulation] Target: {phone_number} | "
-                f"Keys not set in .env (SMSCHEF_API_KEY / SMSCHEF_DEVICE_ID). Message: {message[:60]}..."
+                f"Keys not configured in .env (SMSCHEF_API_KEY / SMSCHEF_DEVICE_ID). Message: {message[:60]}..."
             )
             return {
                 "status": "SIMULATED",

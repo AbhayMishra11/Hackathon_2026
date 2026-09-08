@@ -7,6 +7,7 @@ logger = logging.getLogger("coldstorage.websocket")
 
 router = APIRouter()
 
+@router.websocket("/ws")
 @router.websocket("/ws/live-telemetry")
 async def websocket_live_telemetry_all(websocket: WebSocket):
     await connection_manager.connect(websocket)
@@ -23,6 +24,7 @@ async def websocket_live_telemetry_all(websocket: WebSocket):
     except WebSocketDisconnect:
         connection_manager.disconnect(websocket)
 
+@router.websocket("/ws/{zone_id}")
 @router.websocket("/ws/live-telemetry/{zone_id}")
 async def websocket_live_telemetry_zone(websocket: WebSocket, zone_id: str):
     await connection_manager.connect(websocket, zone_id=zone_id)

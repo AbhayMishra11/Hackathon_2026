@@ -1,6 +1,14 @@
 import os
+from pathlib import Path
 from typing import List
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
+
+# Explicitly load backend/.env based on file location
+_backend_dir = Path(__file__).resolve().parents[2]
+_env_path = _backend_dir / ".env"
+if _env_path.exists():
+    load_dotenv(_env_path, override=True)
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Cold Storage Monitoring & Alert System"
@@ -28,9 +36,10 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://localhost:3000",
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "*"
+        "http://127.0.0.1:3000"
     ]
+    CORS_ORIGIN_REGEX: str = r"https://.*\.vercel\.app"
+    DEVICE_API_KEYS: List[str] = [key for key in os.getenv("DEVICE_API_KEYS", "").split(",") if key]
     
     # SMS Chef Gateway Configuration (Free SMS using Android phone & SIM card)
     SMSCHEF_API_URL: str = os.getenv("SMSCHEF_API_URL", "https://www.cloud.smschef.com/api/send/sms")
@@ -44,6 +53,6 @@ class Settings(BaseSettings):
     
     class Config:
         case_sensitive = True
-        env_file = ".env"
+        env_file = str(_env_path) if _env_path.exists() else ".env"
 
 settings = Settings()

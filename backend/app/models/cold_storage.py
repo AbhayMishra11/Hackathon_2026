@@ -22,16 +22,26 @@ class Zone(Base):
     zone_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     storage_id = Column(String(36), ForeignKey("cold_storages.storage_id", ondelete="CASCADE"), nullable=False)
     zone_name = Column(String(60), nullable=False) # e.g. "Zone A - Citrus Chamber"
-    current_crop_type = Column(String(50), nullable=False) # 'Orange', 'Banana', 'Tomato', 'Pineapple'
+    current_crop_type = Column(String(50), nullable=False)
     capacity_kg = Column(Float, default=5000.0)
 
     # Safe operating thresholds for the stored produce
-    temp_min = Column(Float, default=21.0)
-    temp_max = Column(Float, default=24.0)
-    humidity_min = Column(Float, default=80.0)
-    humidity_max = Column(Float, default=95.0)
-    co2_max = Column(Float, default=380.0)
+    temp_min = Column(Float, default=0.0)
+    temp_max = Column(Float, default=2.0)
+    humidity_min = Column(Float, default=95.0)
+    humidity_max = Column(Float, default=100.0)
+    co2_max = Column(Float, default=5000.0)
     light_max = Column(Float, default=20.0)
+
+    chilling_injury_c = Column(Float, nullable=True)
+    freezing_point_c = Column(Float, nullable=True)
+    setpoint_c = Column(Float, default=1.0)
+    setpoint_rh = Column(Float, default=97.0)
+    hysteresis_c = Column(Float, default=0.75)
+    mode = Column(String(20), default="AUTO")
+    co2_ppm_max = Column(Float, default=5000.0)
+    co2_ppm_critical = Column(Float, default=10000.0)
+    free_volume_m3 = Column(Float, default=3.0)
 
     status = Column(String(20), default="OPTIMAL") # 'OPTIMAL', 'WARNING', 'CRITICAL'
     created_at = Column(DateTime, default=datetime.utcnow)
