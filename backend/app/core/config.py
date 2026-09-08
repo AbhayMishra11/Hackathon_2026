@@ -12,6 +12,7 @@ if _env_path.exists():
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Cold Storage Monitoring & Alert System"
+    PROJECT_NAME: str = "Solar-Powered Smart Mini Cold Storage System (NER)"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     

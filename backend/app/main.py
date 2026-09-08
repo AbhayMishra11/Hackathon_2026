@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="IoT-Enabled Cold Storage Monitoring, Spoilage Prediction & Farmer Alert System",
+    description="Decentralized IoT-Enabled Solar Cold Storage Monitoring, Psychrometric Physics, AI Spoilage Guardian & Farmer Cellular Alert Platform for North Eastern Region (NER)",
     lifespan=lifespan
 )
 
