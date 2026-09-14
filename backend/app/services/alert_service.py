@@ -1,6 +1,6 @@
 import logging
-from datetime import datetime, timedelta
-from typing import List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
@@ -85,7 +85,7 @@ class AlertService:
             # Active debounce lock in Redis, suppress duplicate SMS & alert creation
             return None
 
-        debounce_cutoff = datetime.utcnow() - timedelta(minutes=settings.ALERT_DEBOUNCE_MINUTES)
+        debounce_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=settings.ALERT_DEBOUNCE_MINUTES)
         existing_alert_query = select(Alert).where(
             and_(
                 Alert.zone_id == zone.zone_id,
@@ -111,7 +111,7 @@ class AlertService:
             message=message,
             status="ACTIVE",
             is_farmer_notified=False,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
         new_alert.metric = sensor.sensor_type
         new_alert.observed_value = reading_value
@@ -160,7 +160,7 @@ class AlertService:
             message=message,
             status="ACTIVE",
             is_farmer_notified=False,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(alert)
         await db.flush()
@@ -223,7 +223,7 @@ class AlertService:
                 recipient=farmer.phone_number if farmer.preferred_alert_channel in ("SMS", "WHATSAPP") else (farmer.email or farmer.phone_number),
                 content=notification_content,
                 delivery_status=delivery_status,
-                sent_at=datetime.utcnow()
+                sent_at=datetime.now(timezone.utc).replace(tzinfo=None)
             )
             db.add(notification)
 

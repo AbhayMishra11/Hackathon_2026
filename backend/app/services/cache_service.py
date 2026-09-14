@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import redis.asyncio as aioredis
 from app.core.config import settings
 
@@ -64,7 +64,7 @@ class RedisCacheService:
         # Memory Fallback
         self._memory_cache[key] = {
             "data": data,
-            "expires_at": datetime.utcnow() + timedelta(seconds=ttl)
+            "expires_at": datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=ttl)
         }
 
     async def get_live_zone_metrics(self, zone_id: str) -> Optional[Dict[str, Any]]:
@@ -85,7 +85,7 @@ class RedisCacheService:
         # Memory Fallback
         cached = self._memory_cache.get(key)
         if cached:
-            if datetime.utcnow() < cached["expires_at"]:
+            if datetime.now(timezone.utc).replace(tzinfo=None) < cached["expires_at"]:
                 return cached["data"]
             else:
                 del self._memory_cache[key]
@@ -110,7 +110,7 @@ class RedisCacheService:
                 self.is_connected = False
 
         # Memory Fallback
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         if lock_key in self._memory_locks:
             if now < self._memory_locks[lock_key]:
                 return False # Still locked

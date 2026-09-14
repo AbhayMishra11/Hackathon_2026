@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 from app.db.database import Base
 
@@ -20,4 +20,4 @@ class Device(Base):
     last_battery_soc = Column(Float, nullable=True)
     last_temp_c = Column(Float, nullable=True)
     last_rssi = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

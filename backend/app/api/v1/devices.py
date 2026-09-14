@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -35,7 +35,7 @@ async def list_devices(db: AsyncSession = Depends(get_db)):
     query = select(Device)
     result = await db.execute(query)
     devices = result.scalars().all()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     
     out = []
     for d in devices:
@@ -64,7 +64,7 @@ async def get_device_health(device_id: str, db: AsyncSession = Depends(get_db)):
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     age_s = int((now - device.last_seen_at).total_seconds()) if device.last_seen_at else None
     return DeviceResponse(
         device_id=device.device_id,

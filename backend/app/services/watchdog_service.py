@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select
 
 from app.db.database import AsyncSessionLocal
@@ -16,7 +16,7 @@ async def watchdog_loop():
         try:
             async with AsyncSessionLocal() as db:
                 devices = (await db.execute(select(Device))).scalars().all()
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc).replace(tzinfo=None)
                 for device in devices:
                     if not device.last_seen_at or not device.is_online:
                         continue

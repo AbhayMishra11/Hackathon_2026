@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Boolean, Text, DateTime, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -16,7 +16,7 @@ class Alert(Base):
     message = Column(Text, nullable=False)
     status = Column(String(20), default="ACTIVE") # 'ACTIVE', 'ACKNOWLEDGED', 'RESOLVED'
     is_farmer_notified = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     resolved_at = Column(DateTime, nullable=True)
     metric = Column(String(40), nullable=True)
     observed_value = Column(Float, nullable=True)
@@ -42,7 +42,7 @@ class AlertNotification(Base):
     recipient = Column(String(100), nullable=False) # Phone number or email
     content = Column(Text, nullable=False)
     delivery_status = Column(String(20), default="SENT") # 'PENDING', 'SENT', 'FAILED'
-    sent_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Relationships
     alert = relationship("Alert", back_populates="notifications")

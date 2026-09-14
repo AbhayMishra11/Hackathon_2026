@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,7 +56,7 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
             "critical": critical_zones
         },
         "system_status": "CRITICAL" if critical_zones > 0 else ("WARNING" if warning_zones > 0 else "OPTIMAL"),
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.now(timezone.utc).replace(tzinfo=None)
     }
 
 @router.get("/zones/{zone_id}/live", response_model=ZoneLiveStatus)
@@ -84,7 +84,7 @@ async def get_zone_live_status(zone_id: str, db: AsyncSession = Depends(get_db))
             co2=cached_metrics.get("co2"),
             light=cached_metrics.get("light"),
             active_alerts_count=active_alerts,
-            last_updated=datetime.fromisoformat(cached_metrics["timestamp"]) if "timestamp" in cached_metrics else datetime.utcnow()
+            last_updated=datetime.fromisoformat(cached_metrics["timestamp"]) if "timestamp" in cached_metrics else datetime.now(timezone.utc).replace(tzinfo=None)
         )
 
     # 2. Database Fallback if cache miss
@@ -129,7 +129,7 @@ async def get_zone_live_status(zone_id: str, db: AsyncSession = Depends(get_db))
         co2=co2,
         light=light,
         active_alerts_count=active_alerts,
-        last_updated=datetime.utcnow()
+        last_updated=datetime.now(timezone.utc).replace(tzinfo=None)
     )
 
 @router.get("/zones/{zone_id}/history")
@@ -146,7 +146,7 @@ async def get_zone_telemetry_history(
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
 
-    cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+    cutoff_time = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours)
     
     query = (
         select(SensorTelemetryLog)

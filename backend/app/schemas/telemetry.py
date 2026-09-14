@@ -41,6 +41,7 @@ class TelemetryIngestRequest(BaseModel):
     dew_point_c: Optional[float] = None
     vpd_kpa: Optional[float] = None
     rssi: Optional[int] = None
+    air_sensor_ok: Optional[bool] = None
     edge_status: Optional[str] = None
 
 class BulkTelemetryIngestRequest(BaseModel):

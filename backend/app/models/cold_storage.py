@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -11,7 +11,7 @@ class ColdStorage(Base):
     name = Column(String(120), nullable=False)
     location = Column(String(255), nullable=False)
     total_capacity_tons = Column(Float, default=100.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Relationships
     zones = relationship("Zone", back_populates="storage", cascade="all, delete-orphan")
@@ -44,7 +44,7 @@ class Zone(Base):
     free_volume_m3 = Column(Float, default=3.0)
 
     status = Column(String(20), default="OPTIMAL") # 'OPTIMAL', 'WARNING', 'CRITICAL'
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Relationships
     storage = relationship("ColdStorage", back_populates="zones")

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,7 +48,7 @@ async def acknowledge_alert(
 
     alert.status = payload.status
     if payload.status == "RESOLVED":
-        alert.resolved_at = datetime.utcnow()
+        alert.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     await db.commit()
     await db.refresh(alert)

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, JSON, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -11,7 +11,7 @@ class SensorTelemetryLog(Base):
     zone_id = Column(String(36), ForeignKey("zones.zone_id", ondelete="CASCADE"), nullable=False, index=True)
     sensor_type = Column(String(50), nullable=False)
     reading_value = Column(Float, nullable=False)
-    recorded_at = Column(DateTime, default=datetime.utcnow, index=True)
+    recorded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
 
     # Relationships
     sensor = relationship("Sensor", back_populates="telemetry_logs")

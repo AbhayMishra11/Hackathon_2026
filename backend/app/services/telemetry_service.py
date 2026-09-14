@@ -15,6 +15,7 @@ from app.services.cache_service import cache_service
 from app.services.ml_service import ml_service
 from app.services.power_service import autonomy_hours
 from app.services.psychrometrics import abs_humidity_gm3, condensation_margin_c, dew_point_c, vpd_kpa
+from app.services.shelf_life_service import shelf_life_service
 
 
 def _naive_utc(value: datetime | None) -> datetime:
@@ -36,7 +37,7 @@ class TelemetryService:
     async def process_telemetry(db: AsyncSession, data: TelemetryIngestRequest, commit: bool = True) -> IngestResponse:
         zone = await TelemetryService._resolve_zone(db, data)
         sampled_at = _naive_utc(data.sampled_at or data.timestamp)
-        received_at = datetime.utcnow()
+        received_at = datetime.now(timezone.utc).replace(tzinfo=None)
         co2_value = data.co2_true if data.co2_true is not None else data.co2
 
         readings: Dict[str, float] = {}
@@ -77,7 +78,13 @@ class TelemetryService:
             device.is_online = True
 
         existing = (await db.execute(select(Sensor).where(Sensor.zone_id == zone.zone_id))).scalars().all()
-        sensor_dict = {(s.sensor_type.upper(), s.channel or ""): s for s in existing}
+        sensor_dict = {}
+        for s in existing:
+            stype = s.sensor_type.upper()
+            sensor_dict[(stype, s.channel or "")] = s
+            if stype not in sensor_dict:
+                sensor_dict[stype] = s
+
         bounds = {
             "TEMPERATURE": (zone.temp_min, zone.temp_max, "°C"),
             "HUMIDITY": (zone.humidity_min, zone.humidity_max, "%"),
@@ -87,7 +94,7 @@ class TelemetryService:
         alerts = 0
         for sensor_type, value in readings.items():
             channel = "CHAMBER" if sensor_type == "CO2" else "AIR"
-            sensor = sensor_dict.get((sensor_type, channel))
+            sensor = sensor_dict.get((sensor_type, channel)) or sensor_dict.get(sensor_type)
             minimum, maximum, unit = bounds.get(sensor_type, (0.0, 100.0, "units"))
             if not sensor:
                 sensor = Sensor(zone_id=zone.zone_id, sensor_type=sensor_type, channel=channel, device_id=data.device_id,
@@ -96,7 +103,9 @@ class TelemetryService:
                 db.add(sensor)
                 await db.flush()
                 sensor_dict[(sensor_type, channel)] = sensor
+                sensor_dict[sensor_type] = sensor
             else:
+                sensor.channel = channel
                 sensor.current_reading, sensor.timestamp, sensor.device_id = value, sampled_at, data.device_id
                 sensor.base_reading, sensor.max_reading = minimum, maximum
             db.add(SensorTelemetryLog(sensor_id=sensor.sensor_id, zone_id=zone.zone_id, sensor_type=sensor_type,
@@ -149,6 +158,18 @@ class TelemetryService:
                     stratification_c=stratification, rssi=data.rssi, firmware=data.firmware, edge_status=data.edge_status,
                 )
                 db.add(frame)
+        # Postharvest Shelf Life Integral (Physics Model)
+        shelf_life = await shelf_life_service.update(
+            db,
+            zone_id=zone.zone_id,
+            crop_type=zone.current_crop_type,
+            temperature=data.temperature, # Raw data.temperature, NOT setpoint fallback
+            humidity=data.humidity,       # Raw data.humidity, NOT setpoint fallback
+            sampled_at=sampled_at,
+            condensation_margin_c=margin,
+            mass_kg=data.mass_kg,
+        )
+
         if commit:
             await db.commit()
 
@@ -164,14 +185,19 @@ class TelemetryService:
             "setpoint_c": zone.setpoint_c, "power_source": data.power_source, "pv_power_w": data.pv_power_w,
             "battery_soc": data.battery_soc, "load_power_w": data.load_power_w,
             "autonomy_hours": frame.autonomy_hours if frame else None, "rssi": data.rssi, "edge_status": data.edge_status,
+            "remaining_shelf_life_h": shelf_life.remaining_h if shelf_life else None,
+            "total_damage": shelf_life.total_damage if shelf_life else None,
+            "value_at_risk": shelf_life.value_at_risk if shelf_life else None,
         }
         await cache_service.set_live_zone_metrics(zone.zone_id, payload)
         await cache_service.publish_telemetry_event("coldstorage:telemetry", payload)
         await connection_manager.broadcast(payload, zone_id=zone.zone_id)
+        remaining_h = shelf_life.remaining_h if shelf_life else None
         return IngestResponse(status="SUCCESS", message=f"Processed telemetry for {len(readings)} sensors in {zone.zone_name}",
                               zone_id=zone.zone_id, alerts_triggered=alerts, spoilage_status=prediction.predicted_quality,
                               timestamp=sampled_at, condensation_margin_c=margin,
-                              recommended_setpoint_c=zone.setpoint_c, server_time=received_at)
+                              recommended_setpoint_c=zone.setpoint_c, server_time=received_at,
+                              remaining_shelf_life_h=remaining_h)
 
     @staticmethod
     async def _resolve_zone(db: AsyncSession, data: TelemetryIngestRequest) -> Zone:

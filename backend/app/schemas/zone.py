@@ -1,18 +1,18 @@
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
 from .sensor import SensorResponse
 
 class ZoneBase(BaseModel):
     zone_name: str
-    current_crop_type: str = Field(..., description="Orange, Banana, Tomato, Pineapple")
+    current_crop_type: str = Field(..., description="Cabbage, French bean, Leafy greens, Tomato, Ginger, Pineapple, Khasi mandarin, Green chilli")
     capacity_kg: float = 5000.0
-    temp_min: float = 21.0
-    temp_max: float = 24.0
-    humidity_min: float = 80.0
-    humidity_max: float = 95.0
-    co2_max: float = 380.0
-    light_max: float = 20.0
+    temp_min: Optional[float] = None
+    temp_max: Optional[float] = None
+    humidity_min: Optional[float] = None
+    humidity_max: Optional[float] = None
+    co2_max: Optional[float] = None
+    light_max: Optional[float] = None
 
 class ZoneCreate(ZoneBase):
     storage_id: str
@@ -23,6 +23,17 @@ class ZoneResponse(ZoneBase):
     status: str
     created_at: datetime
     sensors: Optional[List[SensorResponse]] = []
+
+    # NER Solar & Environmental Control Fields
+    setpoint_c: Optional[float] = None
+    setpoint_rh: Optional[float] = None
+    hysteresis_c: Optional[float] = None
+    mode: Optional[str] = None
+    chilling_injury_c: Optional[float] = None
+    freezing_point_c: Optional[float] = None
+    co2_ppm_max: Optional[float] = None
+    co2_ppm_critical: Optional[float] = None
+    free_volume_m3: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -46,8 +57,12 @@ class ZoneSetpointUpdate(BaseModel):
     rh_pct: Optional[float] = Field(default=92.0, description="Target relative humidity %")
 
 class ZoneModeUpdate(BaseModel):
-    mode: str = Field(..., description="AUTO, PRECOOL, DEFROST, ECO, OFF")
+    mode: Literal["AUTO", "PRECOOL", "DEFROST", "ECO", "OFF"] = Field(..., description="AUTO, PRECOOL, DEFROST, ECO, OFF")
 
 class ZoneCropUpdate(BaseModel):
-    crop_type: str = Field(..., description="Cabbage, French bean, Leafy greens, Tomato, Ginger, Pineapple, Khasi mandarin, Green chilli")
+    crop_type: Literal[
+        "Cabbage", "French bean", "Leafy greens", "Tomato",
+        "Ginger", "Pineapple", "Khasi mandarin", "Green chilli"
+    ] = Field(..., description="Cabbage, French bean, Leafy greens, Tomato, Ginger, Pineapple, Khasi mandarin, Green chilli")
+
 

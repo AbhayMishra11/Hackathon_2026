@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -20,7 +20,7 @@ class Sensor(Base):
     base_reading = Column(Float, default=0.0) # Lower safe threshold or baseline
     max_reading = Column(Float, default=100.0) # Upper safe threshold
     status = Column(String(20), default="ACTIVE") # 'ACTIVE', 'FAULT', 'OFFLINE'
-    timestamp = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Relationships
     zone = relationship("Zone", back_populates="sensors")

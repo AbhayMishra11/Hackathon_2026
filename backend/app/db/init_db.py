@@ -10,6 +10,7 @@ from app.models.crop_batch import CropBatch
 from app.models.alert import Alert
 from app.models.device import Device
 from app.models.telemetry import TelemetryFrame
+from app.services.shelf_life_service import ShelfLifeState
 
 logger = logging.getLogger("coldstorage.init_db")
 
@@ -81,6 +82,10 @@ async def init_database():
                     zone.chilling_injury_c, zone.freezing_point_c, zone.setpoint_c = band[5:]
                     zone.setpoint_rh = (zone.humidity_min + zone.humidity_max) / 2
                     zone.co2_ppm_max, zone.co2_ppm_critical = zone.co2_max, 10000.0
+                # Synchronize matching crop_batch fruit_type
+                batches = (await session.execute(select(CropBatch).where(CropBatch.zone_id == zone.zone_id))).scalars().all()
+                for batch in batches:
+                    batch.fruit_type = zone.current_crop_type
             await session.commit()
             logger.info("Database already seeded with initial cold storage configuration.")
             return
