@@ -102,7 +102,7 @@ async def init_database():
         # 2. Create Default Farmers
         farmer1 = User(
             name="Ramesh Patel",
-            phone_number="+919876543210",
+            phone_number="+917080943706",
             email="ramesh.patel@agri.com",
             role="FARMER",
             preferred_alert_channel="SMS"

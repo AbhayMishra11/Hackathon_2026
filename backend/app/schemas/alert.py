@@ -5,16 +5,20 @@ from pydantic import BaseModel
 class AlertBase(BaseModel):
     zone_id: str
     sensor_id: Optional[str] = None
+    device_id: Optional[str] = None
     alert_type: str
     severity: str = "WARNING"
     title: str
     message: str
+    metric: Optional[str] = None
+    observed_value: Optional[float] = None
+    threshold_value: Optional[float] = None
 
 class AlertCreate(AlertBase):
     pass
 
 class AlertAcknowledge(BaseModel):
-    status: str = "ACKNOWLEDGED" # 'ACKNOWLEDGED', 'RESOLVED'
+    status: str = "ACKNOWLEDGED"  # 'ACKNOWLEDGED', 'RESOLVED'
 
 class AlertNotificationResponse(BaseModel):
     notification_id: str
@@ -35,7 +39,7 @@ class AlertResponse(AlertBase):
     is_farmer_notified: bool
     created_at: datetime
     resolved_at: Optional[datetime] = None
+    auto_resolved_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
-

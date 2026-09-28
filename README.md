@@ -100,10 +100,18 @@ Calculates ambient moisture thermodynamics on every incoming sensor frame:
 - Predicts produce quality (`Good` / `Bad`), continuous **Spoilage Risk Percentage** ($0-100\%$), and dynamic **Remaining Shelf Life (Days)**.
 - Provides actionable mitigation recommendations (e.g., adjust cooling setpoints, open ventilation scrubbers to flush ethylene/$\text{CO}_2$).
 
-### 6. 📱 Instant Cellular Farmer Alerts (SMS Chef Gateway)
-- Dispatches direct SMS to registered farmers when safe storage parameters are violated.
-- Integrated **Redis distributed lock debouncing (`SET NX EX`)** prevents duplicate alert spamming during ongoing emergencies.
-- Built-in graceful simulation fallback when live cellular hardware is offline.
+### 6. 📱 Instant Cellular Farmer & Operator Alerts (SMS Chef Gateway)
+- **Direct Cellular GSM Dispatch**: Integrated SMS Chef Android gateway sends real-time SMS to farmers' mobile numbers without requiring active smartphone internet.
+- **Targeted Recipient Routing**:
+  - `FARMER`: Produce-specific alerts (freezing hazard, chilling injury, mold condensation, shelf life expiry) routed to farmers with batches in the affected chamber.
+  - `OPERATOR`: Engineering & hardware faults (power transitions, sensor disconnection, battery low, watchdog stale nodes) routed to maintenance staff.
+- **Multi-Category Anomaly & Safety Engine**:
+  - **Storage Safety**: `CHILLING_INJURY_RISK`, `FREEZING_HAZARD`, `CONDENSATION_MOLD_HAZARD` (surface dew point sweating), and `THERMAL_STRATIFICATION_HIGH` ($> 3^\circ\text{C}$ gradient).
+  - **Power & Battery Health**: `POWER_GRID_LOST` with battery SoC % and autonomy hours countdown; `POWER_BATTERY_LOW` / `POWER_BATTERY_CRITICAL`; **auto-resolution** upon `POWER_RESTORED`.
+  - **Hardware Diagnostic & Poisoning Prevention**: 1-Wire DS18B20 digital disconnect detection (`-127.0^\circ\text{C}`), power-on reset errors (`85.0^\circ\text{C}`), out-of-bounds readings, and probe spatial outlier isolation.
+  - **Cold Chain Operations**: `DOOR_AJAR_WARNING` (evaporator coil icing prevention), `COOLING_INEFFECTIVE` (thermal runaway), `VOC_SPIKE_HIGH` (ethylene accumulation), and `SHELF_LIFE_CRITICAL` ($< 48\text{h}$).
+- **Intelligent Anti-Spam Debouncing**: Redis distributed locks (`SET NX EX`) and SQLite in-memory debounce windows prevent alert notification flooding.
+- 📖 **Complete Technical Reference**: See [`ALERT_SYSTEM_README.md`](ALERT_SYSTEM_README.md) for full parameter thresholds, payload schemas, and cellular gateway setup instructions.
 
 ---
 

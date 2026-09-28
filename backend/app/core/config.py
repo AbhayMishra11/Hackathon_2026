@@ -18,18 +18,17 @@ class Settings(BaseSettings):
     
     # Database Settings (PostgreSQL System of Record)
     # Production: e.g., postgresql+asyncpg://postgres:password@localhost:5432/coldstorage_db
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "sqlite+aiosqlite:///./cold_storage.db"
-    )
+    _raw_db = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./cold_storage.db")
+    DATABASE_URL: str = "sqlite+aiosqlite:///./cold_storage.db" if "192.168.16.128" in _raw_db else _raw_db
     SYNC_DATABASE_URL: str = os.getenv(
         "SYNC_DATABASE_URL",
         "sqlite:///./cold_storage.db"
     )
     
     # Redis Settings (In-Memory Live Cache, Pub/Sub, Alert Debouncing)
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    ENABLE_REDIS: bool = os.getenv("ENABLE_REDIS", "true").lower() == "true"
+    _raw_redis = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    REDIS_URL: str = "redis://localhost:6379/0" if "192.168.16.128" in _raw_redis else _raw_redis
+    ENABLE_REDIS: bool = (os.getenv("ENABLE_REDIS", "false").lower() == "true") and ("192.168.16.128" not in _raw_redis)
     REDIS_METRICS_TTL_SECONDS: int = 15  # Cache TTL for live zone telemetry
     
     # CORS Origins for Frontend
@@ -57,3 +56,9 @@ class Settings(BaseSettings):
         env_file = str(_env_path) if _env_path.exists() else ".env"
 
 settings = Settings()
+if "192.168.16.128" in settings.DATABASE_URL:
+    settings.DATABASE_URL = "sqlite+aiosqlite:///./cold_storage.db"
+if "192.168.16.128" in settings.REDIS_URL:
+    settings.REDIS_URL = "redis://localhost:6379/0"
+    settings.ENABLE_REDIS = False
+
