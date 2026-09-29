@@ -12,6 +12,34 @@ dist
 dist-ssr
 *.local
 
+# Environment & Secrets
+.env
+.env*.local
+backend/.env
+!.env.example
+!backend/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+
+# Databases & SQLite
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+cold_storage.db
+backend/cold_storage.db
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,4 +50,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
+
+# Postman & API Test Collections (Local only)
+*.postman_collection.json
+*.postman_environment.json
+postman/
