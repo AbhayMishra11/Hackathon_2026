@@ -42,12 +42,23 @@ async def _additive_schema_migration(conn):
 
 async def init_database():
     """Create all database tables and seed initial cold storage facilities, zones, and sensors."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await _additive_schema_migration(conn)
+    import app.db.database as db_mod
+
+    try:
+        async with db_mod.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            await _additive_schema_migration(conn)
+    except Exception as e:
+        if not settings.DATABASE_URL.startswith("sqlite"):
+            db_mod.switch_to_sqlite_fallback()
+            async with db_mod.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+                await _additive_schema_migration(conn)
+        else:
+            raise e
     logger.info("Database tables initialized successfully.")
 
-    async with AsyncSessionLocal() as session:
+    async with db_mod.AsyncSessionLocal() as session:
         # Check if already seeded
         facility_check = await session.execute(select(ColdStorage))
         if facility_check.scalars().first():
