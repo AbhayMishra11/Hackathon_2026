@@ -11,6 +11,7 @@ from app.models.alert import Alert
 from app.models.device import Device
 from app.models.telemetry import TelemetryFrame
 from app.services.shelf_life_service import ShelfLifeState
+from app.core.config import settings
 
 logger = logging.getLogger("coldstorage.init_db")
 
@@ -86,8 +87,20 @@ async def init_database():
                 batches = (await session.execute(select(CropBatch).where(CropBatch.zone_id == zone.zone_id))).scalars().all()
                 for batch in batches:
                     batch.fruit_type = zone.current_crop_type
+
+            # Synchronize default farmers from settings (.env)
+            farmer_sync = {
+                settings.FARMER_1_NAME: {"phone": settings.FARMER_1_PHONE, "channel": settings.FARMER_1_CHANNEL},
+                settings.FARMER_2_NAME: {"phone": settings.FARMER_2_PHONE, "channel": settings.FARMER_2_CHANNEL},
+            }
+            existing_users = (await session.execute(select(User))).scalars().all()
+            for u in existing_users:
+                if u.name in farmer_sync:
+                    u.phone_number = farmer_sync[u.name]["phone"]
+                    u.preferred_alert_channel = farmer_sync[u.name]["channel"]
+
             await session.commit()
-            logger.info("Database already seeded with initial cold storage configuration.")
+            logger.info("Database already seeded with initial cold storage configuration. Synchronized farmer profiles.")
             return
 
         # 1. Create Default Cold Storage Facility
@@ -99,20 +112,20 @@ async def init_database():
         session.add(storage)
         await session.flush()
 
-        # 2. Create Default Farmers
+        # 2. Create Default Farmers (Loaded securely from .env settings)
         farmer1 = User(
-            name="Ramesh Patel",
-            phone_number="+917080943706",
+            name=settings.FARMER_1_NAME,
+            phone_number=settings.FARMER_1_PHONE,
             email="ramesh.patel@agri.com",
             role="FARMER",
-            preferred_alert_channel="SMS"
+            preferred_alert_channel=settings.FARMER_1_CHANNEL
         )
         farmer2 = User(
-            name="Suresh Kumar",
-            phone_number="+919812345678",
+            name=settings.FARMER_2_NAME,
+            phone_number=settings.FARMER_2_PHONE,
             email="suresh.kumar@agri.com",
             role="FARMER",
-            preferred_alert_channel="WHATSAPP"
+            preferred_alert_channel=settings.FARMER_2_CHANNEL
         )
         session.add_all([farmer1, farmer2])
         await session.flush()

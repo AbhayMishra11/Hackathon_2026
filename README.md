@@ -237,12 +237,22 @@ Storage limits enforced in [`config/storage_rules.yml`](file:///d:/Hackathon_202
 Configure your database and Redis connection in [`backend/.env`](file:///d:/Hackathon_2026/backend/.env):
 
 ```env
-# PostgreSQL Connection URL (URL-encode special characters e.g. @ -> %40)
-DATABASE_URL=postgresql+asyncpg://postgres:Password%40123%21@192.168.16.128:5432/coldstorage_db
+# Database Settings (SQLite fallback or PostgreSQL)
+DATABASE_URL=sqlite+aiosqlite:///./cold_storage.db
+# DATABASE_URL=postgresql+asyncpg://postgres:your_password@localhost:5432/coldstorage_db
 
 # Redis In-Memory Live Cache & Pub/Sub
-REDIS_URL=redis://192.168.16.128:6379/0
-ENABLE_REDIS=true
+REDIS_URL=redis://localhost:6379/0
+ENABLE_REDIS=false
+
+# Farmer Contact Numbers for Real-time Cellular Alerts
+FARMER_1_NAME=Ramesh Patel
+FARMER_1_PHONE=+919876543210
+FARMER_1_CHANNEL=SMS
+
+FARMER_2_NAME=Suresh Kumar
+FARMER_2_PHONE=+919812345678
+FARMER_2_CHANNEL=WHATSAPP
 
 # Optional SMS Chef Gateway (Logs rich alerts to console if left empty)
 SMSCHEF_API_URL=https://www.cloud.smschef.com/api/send/sms

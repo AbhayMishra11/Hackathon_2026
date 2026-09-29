@@ -16,19 +16,16 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
-    # Database Settings (PostgreSQL System of Record)
-    # Production: e.g., postgresql+asyncpg://postgres:password@localhost:5432/coldstorage_db
-    _raw_db = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./cold_storage.db")
-    DATABASE_URL: str = "sqlite+aiosqlite:///./cold_storage.db" if "192.168.16.128" in _raw_db else _raw_db
+    # Database Settings (PostgreSQL or SQLite fallback)
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./cold_storage.db")
     SYNC_DATABASE_URL: str = os.getenv(
         "SYNC_DATABASE_URL",
         "sqlite:///./cold_storage.db"
     )
     
     # Redis Settings (In-Memory Live Cache, Pub/Sub, Alert Debouncing)
-    _raw_redis = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    REDIS_URL: str = "redis://localhost:6379/0" if "192.168.16.128" in _raw_redis else _raw_redis
-    ENABLE_REDIS: bool = (os.getenv("ENABLE_REDIS", "false").lower() == "true") and ("192.168.16.128" not in _raw_redis)
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    ENABLE_REDIS: bool = os.getenv("ENABLE_REDIS", "false").lower() == "true"
     REDIS_METRICS_TTL_SECONDS: int = 15  # Cache TTL for live zone telemetry
     
     # CORS Origins for Frontend
@@ -40,6 +37,15 @@ class Settings(BaseSettings):
     ]
     CORS_ORIGIN_REGEX: str = r"https://.*\.vercel\.app"
     DEVICE_API_KEYS: List[str] = [key for key in os.getenv("DEVICE_API_KEYS", "").split(",") if key]
+    
+    # Farmer Contact Settings (Configurable via .env)
+    FARMER_1_NAME: str = os.getenv("FARMER_1_NAME", "Ramesh Patel")
+    FARMER_1_PHONE: str = os.getenv("FARMER_1_PHONE", "+919876543210")
+    FARMER_1_CHANNEL: str = os.getenv("FARMER_1_CHANNEL", "SMS")
+    
+    FARMER_2_NAME: str = os.getenv("FARMER_2_NAME", "Suresh Kumar")
+    FARMER_2_PHONE: str = os.getenv("FARMER_2_PHONE", "+919812345678")
+    FARMER_2_CHANNEL: str = os.getenv("FARMER_2_CHANNEL", "WHATSAPP")
     
     # SMS Chef Gateway Configuration (Free SMS using Android phone & SIM card)
     SMSCHEF_API_URL: str = os.getenv("SMSCHEF_API_URL", "https://www.cloud.smschef.com/api/send/sms")
@@ -56,9 +62,4 @@ class Settings(BaseSettings):
         env_file = str(_env_path) if _env_path.exists() else ".env"
 
 settings = Settings()
-if "192.168.16.128" in settings.DATABASE_URL:
-    settings.DATABASE_URL = "sqlite+aiosqlite:///./cold_storage.db"
-if "192.168.16.128" in settings.REDIS_URL:
-    settings.REDIS_URL = "redis://localhost:6379/0"
-    settings.ENABLE_REDIS = False
 
